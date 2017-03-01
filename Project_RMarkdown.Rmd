@@ -1,0 +1,94 @@
+---
+title: "Analytics_Project"
+author: "Frayosh Khursetjee"
+date: "1 March 2017"
+output: html_document
+---
+```{library(dplyr)
+library(ggplot2)
+library(rpart)
+library(rpart.plot)
+library(caret)
+library(randomForest)
+
+# Reading the Training and Testing files for Analysis
+pml.training <- read.csv("//inmbfp1/redirect1/g551739/My Documents/R_Code/Machine_Learning/pml-training.csv", stringsAsFactors=FALSE)
+pml.testing <- read.csv("//inmbfp1/redirect1/g551739/My Documents/R_Code/Machine_Learning/pml-testing.csv", stringsAsFactors=FALSE)
+
+# Check Relationship between Categorical Varaibels
+table(pml.training$user_name, pml.training$classe) -> klm
+chisq.test(klm)
+
+# Checking for One Sided Data
+ggplot(pml.training,aes(x=new_window)) + geom_bar(fill = "blue")
+
+# Removing unnecesary Variables New Window & Time Stamp Variables
+train <- pml.training
+train <- select(pml.training, -c(2,3,4,5))
+
+# Example of a Highly Correlated Data Pair
+ p=ggplot(train,aes(x=total_accel_belt,y=roll_belt))
+ p + geom_point() + geom_abline(color= "blue")
+ 
+# Plotting (few) Highly Correlated Data Pair
+ ggplot(pml.training,aes(x=magnet_arm_x, y=accel_arm_x,color="grey", size="cyl")) + geom_point() + geom_abline(color = "blue") 
+ ggplot(pml.training,aes(x=accel_dumbbell_z, y=yaw_dumbbell,color="grey", size="cyl")) + geom_point() + geom_abline(color = "blue") 
+ ggplot(train,aes(x=accel_dumbbell_x, y=pitch_dumbbell,color="grey", size="cyl")) + geom_point() + geom_abline(color = "blue") 
+ 
+ # Checking for multicollinearity
+ M <- abs(cor(train[,-c(1,55)]))
+ diag(M) <- 0
+ as.data.frame(which(M > 0.9,arr.ind=T)) -> ll
+ 
+# Removing Correlated Variables 
+train <- select(train, -c(roll_belt,pitch_belt,accel_belt_y,gyros_arm_x,accel_belt_z,gyros_dumbbell_x, gyros_dumbbell_z, magnet_belt_x, magnet_arm_x, magnet_arm_z, gyros_forearm_z,accel_dumbbell_z,accel_dumbbell_x))
+
+# Pre-processing the Data
+Mod1 <- preProcess(train[,-c(1,42)])
+train_mod <- predict(Mod1, train)
+
+# train_2 <- select(train, c(-1))
+# train_Clust <- select(train_2, -c(classe))
+# train_pre <- preProcess(train_Clust)
+# train_Clust <- predict(train_pre, train_Clust)
+#########
+# distances = dist(train_Clust, method ="euclidean")
+# hierClust = hclust(distances, method="ward.D")
+# clusterGroups = cutree(hierClust, k = 5)
+# # Trees & Random Forest
+# K-fold Cross Validation
+# train_Control = trainControl(method = "cv", number = 10)
+
+# Running a Cart Model on the given Data
+train_mod$classe = as.factor(train_mod$classe)
+censustree = rpart(classe ~ ., data = train_mod,method="class")
+prp(censustree)
+# Predicting the given variable on the Test Data
+predictTest = predict(censustree, newdata = test, method = "class")
+
+# censustree = train(classe ~ . , method="rpart", data = train_mod, trControl=train_Control)
+
+Rand_Mod <- randomForest(classe ~ pitch_forearm + magnet_belt_y + accel_forearm_z + roll_forearm + accel_forearm_x + accel_forearm_x + magnet_dumbbell_z + magnet_forearm_z + magnet_dumbbell_y + num_window + magnet_arm_y + yaw_forearm + pitch_arm + accel_dumbbell_y, data = train_mod )
+
+
+# Rand_Mod <- randomForest(classe ~ ., data = train_ee )
+# Replicating on the testing set
+test <- pml.testing
+test <- select(pml.testing, -c(2,3,4,5))
+test <- select(test, -c(roll_belt,pitch_belt,accel_belt_y,gyros_arm_x,accel_belt_z,gyros_dumbbell_x, gyros_dumbbell_z, magnet_belt_x, magnet_arm_x, magnet_arm_z, gyros_forearm_z,accel_dumbbell_z,accel_dumbbell_x))
+
+# predictTest = predict(Rand_Mod, newdata = test)
+# predictTest = as.factor(predictTest)
+# 
+MySubmission1 = data.frame(classe = test, PREDICTION = predictTest)
+# View(MySubmission1)
+
+
+
+
+
+
+}
+
+```
+
