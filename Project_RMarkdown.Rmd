@@ -1,74 +1,107 @@
 ---
-title: "Analytics_Project"
+title: "Project_RMark_Ver2"
 author: "Frayosh Khursetjee"
-date: "1 March 2017"
+date: "5 March 2017"
 output: html_document
 ---
-```{library(dplyr)
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+### Understanding the Data
+
+The Dependent Variable is a Categorical Variable and the remainder variables are a combination of continuous and Categorical variables.  40% of the Variables are populated with Blank values hence they were all removed.
+
+
+
+```{r basic_1, echo=TRUE, warning=FALSE, message=FALSE}
 library(ggplot2)
 library(rpart)
 library(rpart.plot)
 library(caret)
 library(randomForest)
+library(dplyr)
 
-# Reading the Training and Testing files for Analysis
+```
+
+
+```{r basic_2, echo=TRUE}
+
 pml.training <- read.csv("//inmbfp1/redirect1/g551739/My Documents/R_Code/Machine_Learning/pml-training.csv", stringsAsFactors=FALSE)
+dim(pml.training)
 pml.testing <- read.csv("//inmbfp1/redirect1/g551739/My Documents/R_Code/Machine_Learning/pml-testing.csv", stringsAsFactors=FALSE)
+```
 
-# Check Relationship between Categorical Varaibels
-table(pml.training$user_name, pml.training$classe) -> klm
+### Pre-Processing and drawing nuances
+
+The training Data had only two sets of Categorical Variables: The Dependent Variable (Classe) and (User_name). In Order to Understand the Relationship between two categorical variables I started off with a simple Pearson’s Chi Squared Test. Below given is the result.
+
+Ho (Null Hypothesis): Considered Categorical Variables are independent.
+
+Ha (Alternate Hypothesis): Considered Categorical Variables are in some way dependent
+
+The given P-Value < 0.05 (assumed Alfa Value with a 95% confident Band). Thereby implying a strong correlation between Classe and User_Name.
+
+
+```{r basic_3}
+klm <- table(pml.training$user_name, pml.training$classe)
 chisq.test(klm)
+```
 
-# Checking for One Sided Data
-ggplot(pml.training,aes(x=new_window)) + geom_bar(fill = "blue")
+ Checking for One Sided Data & Removing unnecesary Variables New Window & Time Stamp Variables
+ 
+```{r basic_4}
 
-# Removing unnecesary Variables New Window & Time Stamp Variables
 train <- pml.training
 train <- select(pml.training, -c(2,3,4,5))
+ggplot(pml.training,aes(x=new_window)) + geom_bar(fill = "blue")
 
-# Example of a Highly Correlated Data Pair
- p=ggplot(train,aes(x=total_accel_belt,y=roll_belt))
- p + geom_point() + geom_abline(color= "blue")
- 
-# Plotting (few) Highly Correlated Data Pair
- ggplot(pml.training,aes(x=magnet_arm_x, y=accel_arm_x,color="grey", size="cyl")) + geom_point() + geom_abline(color = "blue") 
- ggplot(pml.training,aes(x=accel_dumbbell_z, y=yaw_dumbbell,color="grey", size="cyl")) + geom_point() + geom_abline(color = "blue") 
- ggplot(train,aes(x=accel_dumbbell_x, y=pitch_dumbbell,color="grey", size="cyl")) + geom_point() + geom_abline(color = "blue") 
- 
- # Checking for multicollinearity
- M <- abs(cor(train[,-c(1,55)]))
- diag(M) <- 0
- as.data.frame(which(M > 0.9,arr.ind=T)) -> ll
- 
-# Removing Correlated Variables 
+```
+
+Checking for Multicollinearity and removing correlated variables
+
+```{r basic_5}
+
+M <- abs(cor(train[,-c(1,55)]))
+diag(M) <- 0
+ll <- as.data.frame(which(M > 0.9,arr.ind=T))
+rownames(ll)
 train <- select(train, -c(roll_belt,pitch_belt,accel_belt_y,gyros_arm_x,accel_belt_z,gyros_dumbbell_x, gyros_dumbbell_z, magnet_belt_x, magnet_arm_x, magnet_arm_z, gyros_forearm_z,accel_dumbbell_z,accel_dumbbell_x))
 
-# Pre-processing the Data
-Mod1 <- preProcess(train[,-c(1,42)])
-train_mod <- predict(Mod1, train)
+```
 
-# Running a Cart Model on the given Data
-train_mod$classe = as.factor(train_mod$classe)
-censustree = rpart(classe ~ ., data = train_mod,method="class")
-prp(censustree)
+### Selecting the Model
 
-# Replicating on the testing set
+Since we are predicting Categorical values and not continuous variables at a point in time, time-series modelling is out of the question. For Categorical Variable Predicting the best bet would be a CART model using the rpart Package and Random Forest. 
+
+We first Generate a CART Model using K-fold Validation with 5 Buckets. For a better analysis we have pre-processed the Data. i.e., subtract by the mean and dividing by the Standard Deviation
+
+```{r basic_6}
+control <- trainControl(method = "cv", number = 5) 
+rpart_model <- train(classe ~ ., data = train, method = "rpart", trControl = control, preProcess = c("center","scale"))
+rpart_model
+```
+
+Due to limited accuracy on the CART Model we shift to the Random Forest. Basically making mutiple Regression trees till we get a reduced error on one.
+
+```{r basic_7}
+train$classe = as.factor(train$classe)
+train$user_name = as.factor(train$user_name)
+rf_model <- randomForest(classe ~ ., data = train)
+plot(rf_model)
+```
+
+Predicting on the given test set
+
+```{r basic_9}
 test <- pml.testing
 test <- select(pml.testing, -c(2,3,4,5))
 test <- select(test, -c(roll_belt,pitch_belt,accel_belt_y,gyros_arm_x,accel_belt_z,gyros_dumbbell_x, gyros_dumbbell_z, magnet_belt_x, magnet_arm_x, magnet_arm_z, gyros_forearm_z,accel_dumbbell_z,accel_dumbbell_x))
-
-# Predicting the given variable on the Test Data
-predictTest = predict(censustree, newdata = test, method = "class")
-
-MySubmission1 = data.frame(classe = test, PREDICTION = predictTest)
-
-
-
-
-
-
-
-}
-
+test$user_name = as.factor(test$user_name)
+predict(rf_model,test)
 ```
+
+
+
+
 
